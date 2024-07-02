@@ -1,0 +1,10 @@
+.Room {
+  padding-bottom: 83px;
+  &__form {
+    background: #eee;
+    height: 83px;
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+  }
+}
