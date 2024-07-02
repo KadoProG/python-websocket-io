@@ -1,12 +1,16 @@
 import asyncio
 import websockets
+import json
+
+messages = []
 
 async def handler(websocket, path):
     while True:
         message = await websocket.recv()
         print(f"Received message: {message}")
-        response = f"Echo: {message}"
-        await websocket.send(response)
+        messages.append(message)
+        json_string = json.dumps({"messages": messages}, ensure_ascii=False, indent=4)
+        await websocket.send(json_string)
 
 async def main():
     print("Starting server... ws://localhost:8765")
