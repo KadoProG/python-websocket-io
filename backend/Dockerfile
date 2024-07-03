@@ -14,7 +14,7 @@ COPY ./backend/requirements.txt requirements.txt
 RUN pip install -r requirements.txt
 
 # アプリケーションのソースコードをコピー
-COPY . .
+COPY ./backend .
 
 # Flaskアプリケーションを起動
 CMD ["python", "server.py"]
