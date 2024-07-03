@@ -12,6 +12,8 @@ services:
     environment:
       PORT: ${BACKEND_PORT}
       FRONTEND_URL: ${FRONTEND_URL}
+    networks:
+      - sail
 
     # depends_on:
     #   - db
@@ -26,3 +28,7 @@ services:
   #     - postgres_data:/var/lib/postgresql/data
 # volumes:
 #   postgres_data:
+
+networks:
+  sail:
+    driver: bridge
