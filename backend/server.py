@@ -11,9 +11,9 @@ load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
 socketio = SocketIO(app, cors_allowed_origins="*")
-CORS(app, resources={r"/*": {"origins": os.getenv('FRONTEND_URL', 'http://localhost:3000')}})
-app_port = int(os.getenv('PORT', 3001))
-frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+CORS(app, resources={r"/*": {"origins": os.getenv('FRONTEND_URL')}})
+app_port = int(os.getenv('PORT'))
+frontend_url = os.getenv('FRONTEND_URL')
 
 sessions = {}
 sessions_lock = Lock()
@@ -28,56 +28,8 @@ class Session:
         self.clients = set()
         self.messages = []
 
-def broadcast_client_list(session_id):
-    with sessions_lock:
-        client_list = [client.nickname for client in sessions[session_id].clients]
-        for client in sessions[session_id].clients:
-            emit('clientList', client_list, to=client.sid)
-
-def broadcast_message_history(session_id):
-    with sessions_lock:
-        message_history = sessions[session_id].messages
-        for client in sessions[session_id].clients:
-            emit('messageList', [
-                {**message, 'isMine': message['client'] == client}
-                for message in message_history
-            ], to=client.sid)
-
-@app.route('/create-session', methods=['POST'])
-def create_session():
-    session_id = str(uuid4())
-    with sessions_lock:
-        sessions[session_id] = Session()
-    return jsonify(sessionId=session_id)
-
-@app.route('/session/<session_id>/clients', methods=['GET'])
-def get_clients(session_id):
-    with sessions_lock:
-        if session_id in sessions:
-            clients = [client.nickname for client in sessions[session_id].clients]
-            return jsonify(clients=clients)
-        else:
-            return jsonify(error='Session not found'), 404
-
-@app.route('/session/<session_id>/clients/<int:client_index>', methods=['DELETE'])
-def delete_client(session_id, client_index):
-    with sessions_lock:
-        if session_id in sessions:
-            clients = list(sessions[session_id].clients)
-            if 0 <= client_index < len(clients):
-                client_to_remove = clients[client_index]
-                sessions[session_id].clients.remove(client_to_remove)
-                socketio.close_room(client_to_remove.sid)
-                broadcast_client_list(session_id)
-                return '', 200
-            else:
-                return jsonify(error='Client not found'), 404
-        else:
-            return jsonify(error='Session not found'), 404
-
 @socketio.on('connect')
 def handle_connect():
-    print('New client connected')
     session_id = request.args.get('sessionId')
     nickname = request.args.get('nickName')
     
@@ -129,8 +81,57 @@ def handle_message(message):
                     sessions[session_id].messages.append({'client': client, 'message': message})
                     broadcast_message_history(session_id)
 
+def broadcast_client_list(session_id):
+    with sessions_lock:
+        client_list = [client.nickname for client in sessions[session_id].clients]
+        for client in sessions[session_id].clients:
+            emit('clientList', client_list, to=client.sid)
+
+def broadcast_message_history(session_id):
+    with sessions_lock:
+        message_history = sessions[session_id].messages
+        for client in sessions[session_id].clients:
+            emit('messageList', [
+                {**message, 'isMine': message['client'] == client}
+                for message in message_history
+            ], to=client.sid)
+
+@app.route('/create-session', methods=['POST'])
+def create_session():
+    session_id = str(uuid4())
+    with sessions_lock:
+        sessions[session_id] = Session()
+    return jsonify(sessionId=session_id)
+
+@app.route('/session/<session_id>/clients', methods=['GET'])
+def get_clients(session_id):
+    with sessions_lock:
+        if session_id in sessions:
+            clients = [client.nickname for client in sessions[session_id].clients]
+            return jsonify(clients=clients)
+        else:
+            return jsonify(error='Session not found'), 404
+
+@app.route('/session/<session_id>/clients/<int:client_index>', methods=['DELETE'])
+def delete_client(session_id, client_index):
+    with sessions_lock:
+        if session_id in sessions:
+            clients = list(sessions[session_id].clients)
+            if 0 <= client_index < len(clients):
+                client_to_remove = clients[client_index]
+                sessions[session_id].clients.remove(client_to_remove)
+                socketio.close_room(client_to_remove.sid)
+                broadcast_client_list(session_id)
+                return '', 200
+            else:
+                return jsonify(error='Client not found'), 404
+        else:
+            return jsonify(error='Session not found'), 404
+
+
+
 if __name__ == '__main__':
     print(f'dev server running at: http://localhost:{app_port}/')
     print(f'FRONTEND_URL: {frontend_url}')
     print(f'PORT: {app_port}')
-    socketio.run(app, port=app_port, debug=True)
+    socketio.run(app, port=app_port, debug=True, allow_unsafe_werkzeug=True)
